@@ -32,6 +32,7 @@ type TaskFunc func(context.Context) error
 type periodicTask struct {
 	period time.Duration
 	task   TaskFunc
+	name   string
 	log    logger
 
 	wg       sync.WaitGroup
@@ -53,9 +54,9 @@ func NewTask(name string, p time.Duration, task TaskFunc) *periodicTask {
 		panic("no function provided for " + name + " task")
 	}
 	return &periodicTask{
-		period: p,
-		task:   task,
-		//log: logging.CreateLogger(			logging.ModuleForName("Periodic "+name), 1),
+		period:            p,
+		task:              task,
+		name:              name,
 		tickerConstructor: NewTicker,
 	}
 }
@@ -75,7 +76,7 @@ func (pt *periodicTask) Start() {
 	pt.err = nil
 	pt.ticker = pt.tickerConstructor(pt.period)
 	if pt.log != nil {
-		pt.log.Info("Starting the task with a period of ", pt.period.String())
+		pt.log.Info("Starting the task", pt.name, "with a period of", pt.period.String())
 	}
 	go pt.loop(pt.ticker.TickChan())
 }
@@ -95,11 +96,11 @@ func (pt *periodicTask) Stop() {
 		pt.err = ErrStopped
 		if pt.log != nil {
 			// Will log at the same stack level as Start.
-			pt.log.Info("Execution stopped")
+			pt.log.Info("Execution stopped for task", pt.name)
 		}
 	} else if pt.log != nil {
 		// Will log with a goroutine stack.
-		pt.log.Error("Execution stopped with error: ", pt.err)
+		pt.log.Error("Execution stopped for task", pt.name, "with error:", pt.err)
 	}
 }
 

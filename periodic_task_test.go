@@ -19,6 +19,8 @@ func makeTestPeriodicTask(t *testing.T) *periodicTask {
 
 type testLogWrapper testing.T
 
+//log: logging.CreateLogger(			logging.ModuleForName("Periodic "+name), 1),
+
 func (t *testLogWrapper) Info(args ...any) {
 	(*testing.T)(t).Log(args...)
 }
@@ -130,7 +132,9 @@ func Test_cancelPeriodicTask(t *testing.T) {
 	taskSyncChOut := make(chan bool)
 	var i atomic.Int32
 
+	var testCtxCause error
 	pt.task = func(ctx context.Context) error {
+		testCtxCause = nil
 		taskSyncChOut <- true
 		select {
 		case x := <-taskSyncChIn:
@@ -139,7 +143,8 @@ func Test_cancelPeriodicTask(t *testing.T) {
 				return errors.New("test error")
 			}
 		case <-ctx.Done():
-			assert.ErrorIs(t, ctx.Err(), ErrStopped)
+			testCtxCause = context.Cause(ctx)
+			taskSyncChOut <- true
 			return ctx.Err()
 		}
 		return nil
@@ -154,9 +159,11 @@ func Test_cancelPeriodicTask(t *testing.T) {
 		<-taskSyncChOut
 		assert.NoError(t, pt.Error())
 		pt.Stop()
+		<-taskSyncChOut
 
 		assert.Equal(t, int32(0), i.Load())
 		assert.ErrorIs(t, pt.Error(), ErrStopped)
+		assert.ErrorIs(t, testCtxCause, ErrStopped)
 	})
 
 	t.Run("cancel context on tick", func(t *testing.T) {
@@ -170,39 +177,52 @@ func Test_cancelPeriodicTask(t *testing.T) {
 		pt.ticker.(testTicker) <- tick
 		<-taskSyncChOut
 		pt.Stop()
+		<-taskSyncChOut
 
 		assert.ErrorIs(t, pt.Error(), ErrStopped)
+		assert.ErrorIs(t, testCtxCause, ErrStopped)
 	})
 
 	t.Run("cancel a real timer on start", func(t *testing.T) {
+		testCtxCause = nil
 		taskSyncCh := make(chan bool)
 		pt := NewTask("test", 100*time.Hour,
 			func(ctx context.Context) error {
+
 				taskSyncCh <- true
 				<-ctx.Done()
+				testCtxCause = context.Cause(ctx)
+				taskSyncCh <- true
 				return ctx.Err()
 			})
 		pt.Start()
 		<-taskSyncCh
 		assert.NoError(t, pt.Error())
 		pt.Stop()
+		<-taskSyncCh
 
 		assert.ErrorIs(t, pt.Error(), ErrStopped)
+		assert.ErrorIs(t, testCtxCause, ErrStopped)
 	})
 
 	t.Run("task returns an error on stop", func(t *testing.T) {
+		testCtxCause = nil
 		taskSyncCh := make(chan bool)
 		pt := NewTask("test", 100*time.Hour,
 			func(ctx context.Context) error {
 				taskSyncCh <- true
 				<-ctx.Done()
+				testCtxCause = context.Cause(ctx)
+				taskSyncCh <- true
 				return errors.New("some ignored error")
 			})
 		pt.Start()
 		<-taskSyncCh
 		assert.NoError(t, pt.Error())
 		pt.Stop()
+		<-taskSyncCh
 
 		assert.ErrorIs(t, pt.Error(), ErrStopped)
+		assert.ErrorIs(t, testCtxCause, ErrStopped)
 	})
 }
