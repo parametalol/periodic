@@ -21,13 +21,21 @@ func (sl *stdoutLog) Error(args ...any) {
 	fmt.Println(args...)
 }
 
+var stdout *stdoutLog
+
+func tick(_ context.Context) error {
+	stdout.Info("tick")
+	return nil
+}
+
+func tack(_ context.Context) error {
+	stdout.Info("tack")
+	return nil
+}
+
 func TestTick(t *testing.T) {
-	log := &stdoutLog{}
-	tick := periodic.NewTask("tick", time.Second, func(ctx context.Context) error {
-		log.Info("tick")
-		return nil
-	})
-	tick.SetLog(log)
+	tick := periodic.NewTask("tick", time.Second, periodic.Seq(tick, tack))
+	tick.SetLog(stdout)
 	tick.Start()
 	time.Sleep(5 * time.Second)
 	tick.Stop()
