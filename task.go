@@ -24,9 +24,9 @@ type Task interface {
 
 type TaskFunc func(context.Context) error
 
-type periodicTask struct {
+type task struct {
 	period time.Duration
-	task   TaskFunc
+	fn     TaskFunc
 	name   string
 
 	wg       sync.WaitGroup
@@ -38,26 +38,26 @@ type periodicTask struct {
 	tickerConstructor func(time.Duration) ticker
 }
 
-var _ Task = (*periodicTask)(nil)
+var _ Task = (*task)(nil)
 
 type TaskNameKey struct{}
 
 // NewTask constructs a stopped instance of a named periodic task, that calls
 // the provided function on start, and then periodically at the p period.
 // The periodic execution will stop if task returns an error.
-func NewTask(name string, p time.Duration, task TaskFunc) *periodicTask {
-	if task == nil {
+func NewTask(name string, p time.Duration, fn TaskFunc) *task {
+	if fn == nil {
 		panic("no function provided for " + name + " task")
 	}
-	return &periodicTask{
+	return &task{
 		period:            p,
-		task:              task,
+		fn:                fn,
 		name:              name,
 		tickerConstructor: NewTicker,
 	}
 }
 
-func (pt *periodicTask) Start() {
+func (pt *task) Start() {
 	pt.stateMux.Lock()
 	defer pt.stateMux.Unlock()
 
@@ -72,7 +72,7 @@ func (pt *periodicTask) Start() {
 
 // Stop could be called explicitly by the client code, or after the task
 // returned an error: go Start -> go loop -> go run -> go Stop.
-func (pt *periodicTask) Stop() {
+func (pt *task) Stop() {
 	pt.stateMux.Lock()
 	defer pt.stateMux.Unlock()
 	if pt.ticker == nil {
@@ -86,17 +86,17 @@ func (pt *periodicTask) Stop() {
 	}
 }
 
-func (pt *periodicTask) Wait() {
+func (pt *task) Wait() {
 	pt.wg.Wait()
 }
 
-func (pt *periodicTask) Error() error {
+func (pt *task) Error() error {
 	pt.stateMux.RLock()
 	defer pt.stateMux.RUnlock()
 	return pt.err
 }
 
-func (pt *periodicTask) loop(ticks <-chan time.Time) {
+func (pt *task) loop(ticks <-chan time.Time) {
 	defer pt.wg.Done()
 
 	ctx, cancel := context.WithCancelCause(context.Background())
@@ -110,11 +110,11 @@ func (pt *periodicTask) loop(ticks <-chan time.Time) {
 	}
 }
 
-func (pt *periodicTask) run(ctx context.Context) {
+func (pt *task) run(ctx context.Context) {
 	defer pt.wg.Done()
 
 	// task calls are not synchronized.
-	if err := pt.task(ctx); err != nil && ctx.Err() == nil {
+	if err := pt.fn(ctx); err != nil && ctx.Err() == nil {
 		pt.stateMux.Lock()
 		defer pt.stateMux.Unlock()
 		pt.err = err

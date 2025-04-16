@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func makeTestPeriodicTask() *periodicTask {
+func makeTestPeriodicTask() *task {
 	pt := NewTask("test", time.Hour, func(ctx context.Context) error { return nil })
 	pt.tickerConstructor = newTestTicker
 	return pt
@@ -48,7 +48,7 @@ func Test_periodicTask(t *testing.T) {
 	pt := makeTestPeriodicTask()
 	taskSyncCh := make(chan int32, 5)
 	var counter atomic.Int32
-	pt.task = func(ctx context.Context) error {
+	pt.fn = func(ctx context.Context) error {
 		taskSyncCh <- counter.Add(1)
 		return nil
 	}
@@ -88,7 +88,7 @@ func Test_stopOnError(t *testing.T) {
 	taskSyncChOut := make(chan int32, 5)
 
 	err := errors.New("test error")
-	pt.task = func(ctx context.Context) error {
+	pt.fn = func(ctx context.Context) error {
 		select {
 		case x := <-taskSyncChIn:
 			taskSyncChOut <- x
@@ -130,7 +130,7 @@ func Test_cancelPeriodicTask(t *testing.T) {
 	var i atomic.Int32
 
 	var testCtxCause error
-	pt.task = func(ctx context.Context) error {
+	pt.fn = func(ctx context.Context) error {
 		testCtxCause = nil
 		taskSyncChOut <- true
 		select {
