@@ -37,6 +37,11 @@ func TestTick(t *testing.T) {
 	tick := periodic.NewTask("tick-tack", time.Second,
 		periodic.WithLog(stdout, periodic.Seq(tick, tack)))
 	tick.Start()
-	time.Sleep(1 * time.Second)
+	time.Sleep(2500 * time.Millisecond)
+	// The tick-tack will be called 3 times:
+	// 1: on Start()
+	// 2: after second 1
+	// 3: after second 2
 	tick.Stop()
+	tick.Wait()
 }
