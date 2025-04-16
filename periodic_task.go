@@ -22,18 +22,12 @@ type Task interface {
 	Error() error
 }
 
-type logger interface {
-	Info(...any)
-	Error(...any)
-}
-
 type TaskFunc func(context.Context) error
 
 type periodicTask struct {
 	period time.Duration
 	task   TaskFunc
 	name   string
-	log    logger
 
 	wg       sync.WaitGroup
 	stateMux sync.RWMutex
@@ -45,6 +39,8 @@ type periodicTask struct {
 }
 
 var _ Task = (*periodicTask)(nil)
+
+type TaskNameKey struct{}
 
 // NewTask constructs a stopped instance of a named periodic task, that calls
 // the provided function on start, and then periodically at the p period.
@@ -61,10 +57,6 @@ func NewTask(name string, p time.Duration, task TaskFunc) *periodicTask {
 	}
 }
 
-func (pt *periodicTask) SetLog(log logger) {
-	pt.log = log
-}
-
 func (pt *periodicTask) Start() {
 	pt.stateMux.Lock()
 	defer pt.stateMux.Unlock()
@@ -75,9 +67,6 @@ func (pt *periodicTask) Start() {
 	pt.wg.Add(1)
 	pt.err = nil
 	pt.ticker = pt.tickerConstructor(pt.period)
-	if pt.log != nil {
-		pt.log.Info("Starting the task", pt.name, "with a period of", pt.period.String())
-	}
 	go pt.loop(pt.ticker.TickChan())
 }
 
@@ -94,13 +83,6 @@ func (pt *periodicTask) Stop() {
 
 	if pt.err == nil {
 		pt.err = ErrStopped
-		if pt.log != nil {
-			// Will log at the same stack level as Start.
-			pt.log.Info("Execution stopped for task", pt.name)
-		}
-	} else if pt.log != nil {
-		// Will log with a goroutine stack.
-		pt.log.Error("Execution stopped for task", pt.name, "with error:", pt.err)
 	}
 }
 
@@ -119,6 +101,8 @@ func (pt *periodicTask) loop(ticks <-chan time.Time) {
 
 	ctx, cancel := context.WithCancelCause(context.Background())
 	defer cancel(ErrStopped)
+
+	ctx = context.WithValue(ctx, TaskNameKey{}, pt.name)
 
 	for range ticks {
 		pt.wg.Add(1)

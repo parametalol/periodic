@@ -39,3 +39,16 @@ func WithTimeout(timeout time.Duration, task TaskFunc) TaskFunc {
 		return task(ctx)
 	}
 }
+
+func WithLog(log interface {
+	Info(...any)
+	Error(...any)
+}, task TaskFunc) TaskFunc {
+	return func(ctx context.Context) error {
+		log.Info("Calling task", ctx.Value(TaskNameKey{}))
+		if err := task(ctx); err != nil {
+			log.Error("Execution stopped for task", ctx.Value(TaskNameKey{}), "with error:", err)
+		}
+		return nil
+	}
+}

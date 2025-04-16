@@ -10,16 +10,13 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func makeTestPeriodicTask(t *testing.T) *periodicTask {
+func makeTestPeriodicTask() *periodicTask {
 	pt := NewTask("test", time.Hour, func(ctx context.Context) error { return nil })
-	pt.SetLog((*testLogWrapper)(t))
 	pt.tickerConstructor = newTestTicker
 	return pt
 }
 
 type testLogWrapper testing.T
-
-//log: logging.CreateLogger(			logging.ModuleForName("Periodic "+name), 1),
 
 func (t *testLogWrapper) Info(args ...any) {
 	(*testing.T)(t).Log(args...)
@@ -48,7 +45,7 @@ func TestNewTask(t *testing.T) {
 }
 
 func Test_periodicTask(t *testing.T) {
-	pt := makeTestPeriodicTask(t)
+	pt := makeTestPeriodicTask()
 	taskSyncCh := make(chan int32, 5)
 	var counter atomic.Int32
 	pt.task = func(ctx context.Context) error {
@@ -86,7 +83,7 @@ func Test_periodicTask(t *testing.T) {
 }
 
 func Test_stopOnError(t *testing.T) {
-	pt := makeTestPeriodicTask(t)
+	pt := makeTestPeriodicTask()
 	taskSyncChIn := make(chan int32, 5)
 	taskSyncChOut := make(chan int32, 5)
 
@@ -126,7 +123,7 @@ func Test_stopOnError(t *testing.T) {
 }
 
 func Test_cancelPeriodicTask(t *testing.T) {
-	pt := makeTestPeriodicTask(t)
+	pt := makeTestPeriodicTask()
 
 	taskSyncChIn := make(chan int32, 5)
 	taskSyncChOut := make(chan bool)

@@ -34,9 +34,9 @@ func tack(_ context.Context) error {
 }
 
 func TestTick(t *testing.T) {
-	tick := periodic.NewTask("tick", time.Second, periodic.Seq(tick, tack))
-	tick.SetLog(stdout)
+	tick := periodic.NewTask("tick-tack", time.Second,
+		periodic.WithLog(stdout, periodic.Seq(tick, tack)))
 	tick.Start()
-	time.Sleep(5 * time.Second)
+	time.Sleep(1 * time.Second)
 	tick.Stop()
 }
