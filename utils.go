@@ -50,10 +50,11 @@ func WithLog[T TaskFunc](log interface {
 	adaptedTask := Adapt(task)
 	return func(ctx context.Context) error {
 		log.Info("Calling task", ctx.Value(TaskNameKey{}))
-		if err := adaptedTask(ctx); err != nil {
+		err := adaptedTask(ctx)
+		if err != nil {
 			log.Error("Execution stopped for task", ctx.Value(TaskNameKey{}), "with error:", err)
 		}
-		return nil
+		return err
 	}
 }
 
@@ -71,7 +72,7 @@ func Adapt[T TaskFunc](task T) fullTaskFunc {
 		return func(_ context.Context) error {
 			return t()
 		}
-	case func(_ context.Context):
+	case func(context.Context):
 		return func(ctx context.Context) error {
 			t(ctx)
 			return nil
