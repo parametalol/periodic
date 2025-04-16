@@ -41,7 +41,8 @@ func TestNewTask(t *testing.T) {
 	}
 	assert.Equal(t, int32(5), counter.Load())
 
-	assert.Panics(t, func() { _ = NewTask("", 0, nil) })
+	var nilFn func()
+	assert.Panics(t, func() { _ = NewTask("", 0, nilFn) })
 }
 
 func TestTask(t *testing.T) {

@@ -1,7 +1,6 @@
 package examples
 
 import (
-	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -23,19 +22,13 @@ func (sl *stdoutLog) Error(args ...any) {
 
 var stdout *stdoutLog
 
-func tick(_ context.Context) error {
-	stdout.Info("tick")
-	return nil
-}
+func tick() { stdout.Info("tick") }
 
-func tack(_ context.Context) error {
-	stdout.Info("tack")
-	return nil
-}
+func tack() { stdout.Info("tack") }
 
 func TestTick(t *testing.T) {
 	tick := periodic.NewTask("tick-tack", time.Second,
-		periodic.WithLog(stdout, periodic.Seq(tick, tack)))
+		periodic.WithLog(stdout, func() { tick(); tack() }))
 	tick.Start()
 	time.Sleep(2500 * time.Millisecond)
 	// The tick-tack will be called 3 times:

@@ -22,11 +22,15 @@ type Task interface {
 	Error() error
 }
 
-type TaskFunc func(context.Context) error
+type fullTaskFunc = func(context.Context) error
+
+type TaskFunc interface {
+	~fullTaskFunc | ~func() | ~func() error | ~func(context.Context)
+}
 
 type task struct {
 	period time.Duration
-	fn     TaskFunc
+	fn     fullTaskFunc
 	name   string
 
 	wg       sync.WaitGroup
@@ -45,13 +49,13 @@ type TaskNameKey struct{}
 // NewTask constructs a stopped instance of a named periodic task, that calls
 // the provided function on start, and then periodically at the p period.
 // The periodic execution will stop if task returns an error.
-func NewTask(name string, p time.Duration, fn TaskFunc) *task {
+func NewTask[TFn TaskFunc](name string, p time.Duration, fn TFn) *task {
 	if fn == nil {
 		panic("no function provided for " + name + " task")
 	}
 	return &task{
 		period:            p,
-		fn:                fn,
+		fn:                Adapt(fn),
 		name:              name,
 		tickerConstructor: NewTicker,
 	}

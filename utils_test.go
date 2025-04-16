@@ -10,17 +10,16 @@ import (
 
 func TestSeqIgnoreErr(t *testing.T) {
 	i := 2
-	inc := func(_ context.Context) error {
+	inc := func() {
 		i++
-		return nil
 	}
 	mul := func(_ context.Context) error {
 		i *= 2
 		return errors.New("error")
 	}
-	assert.NoError(t, Seq(inc, IgnoreErr(mul))(context.Background()))
+	assert.NoError(t, Seq(Adapt(inc), IgnoreErr(mul))(context.Background()))
 	assert.Equal(t, 6, i)
 
-	assert.Error(t, Seq(mul, inc)(context.Background()))
+	assert.Error(t, Seq(mul, Adapt(inc))(context.Background()))
 	assert.Equal(t, 12, i)
 }
