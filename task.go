@@ -31,11 +31,11 @@ type task struct {
 
 	wg       sync.WaitGroup
 	stateMux sync.RWMutex
-	ticker   ticker
+	ticker   Ticker
 	err      error
 
 	// Used for testing.
-	tickerConstructor func(time.Duration) ticker
+	tickerConstructor func(time.Duration) Ticker
 }
 
 var _ Task = (*task)(nil)

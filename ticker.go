@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-type ticker interface {
+type Ticker interface {
 	Destroy()
 	TickChan() <-chan time.Time
 }
@@ -17,7 +17,7 @@ type timeTicker struct {
 	stopped atomic.Bool
 }
 
-func NewTicker(d time.Duration) ticker {
+func NewTicker(d time.Duration) Ticker {
 	ch := make(chan time.Time, 1)
 	ticker := &timeTicker{
 		t:    time.NewTicker(d),
@@ -50,3 +50,18 @@ func (tt *timeTicker) Destroy() {
 func (tt *timeTicker) TickChan() <-chan time.Time {
 	return tt.ch
 }
+
+// region TestTicker
+
+// TestTicker is a [periodic.ticker] implementation that just wraps a
+// time.Time channel. It could be used as to test ticker consumers by sending
+// ticks explicitly.
+type TestTicker chan time.Time
+
+var _ Ticker = (*TestTicker)(nil)
+
+func NewTestTicker(time.Duration) Ticker {
+	return make(TestTicker, 1)
+}
+func (tt TestTicker) Destroy()                   { close(tt) }
+func (tt TestTicker) TickChan() <-chan time.Time { return tt }

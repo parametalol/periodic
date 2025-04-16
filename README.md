@@ -9,7 +9,8 @@ Periodic is a lightweight library for managing periodic tasks in your Go applica
   - `Stop()` to gracefully interrupt the execution by cancelling the context;
   - `Wait()` to wait for the running tasks to terminate;
   - `Error()` to consult the termination reason.
-- A ticker implementation that ticks on start and closes the channel on destruction.
+- A `Ticker` interface and an implementation that ticks on start and closes the channel on destruction.
+- A `TestTicker` implementation of the `Ticker` interface that allows for sending a code controlled ticks.
 
 ## Installation
 

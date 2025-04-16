@@ -10,9 +10,9 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func makeTestPeriodicTask() *task {
+func makeTestTask() *task {
 	pt := NewTask("test", time.Hour, func(ctx context.Context) error { return nil })
-	pt.tickerConstructor = newTestTicker
+	pt.tickerConstructor = NewTestTicker
 	return pt
 }
 
@@ -44,8 +44,8 @@ func TestNewTask(t *testing.T) {
 	assert.Panics(t, func() { _ = NewTask("", 0, nil) })
 }
 
-func Test_periodicTask(t *testing.T) {
-	pt := makeTestPeriodicTask()
+func TestTask(t *testing.T) {
+	pt := makeTestTask()
 	taskSyncCh := make(chan int32, 5)
 	var counter atomic.Int32
 	pt.fn = func(ctx context.Context) error {
@@ -61,7 +61,7 @@ func Test_periodicTask(t *testing.T) {
 		assert.NoError(t, pt.Error())
 		pt.Start()
 		assert.NoError(t, pt.Error())
-		pt.ticker.(testTicker) <- tick
+		pt.ticker.(TestTicker) <- tick
 		pt.Stop()
 		assert.ErrorIs(t, pt.Error(), ErrStopped)
 		pt.Stop()
@@ -74,7 +74,7 @@ func Test_periodicTask(t *testing.T) {
 		counter.Store(0)
 		pt.Start()
 		for i := range int32(5) {
-			pt.ticker.(testTicker) <- tick
+			pt.ticker.(TestTicker) <- tick
 			assert.Equal(t, i+1, <-taskSyncCh)
 		}
 		pt.Stop()
@@ -83,7 +83,7 @@ func Test_periodicTask(t *testing.T) {
 }
 
 func Test_stopOnError(t *testing.T) {
-	pt := makeTestPeriodicTask()
+	pt := makeTestTask()
 	taskSyncChIn := make(chan int32, 5)
 	taskSyncChOut := make(chan int32, 5)
 
@@ -107,11 +107,11 @@ func Test_stopOnError(t *testing.T) {
 	pt.Start()
 
 	for i := range int32(5) {
-		pt.ticker.(testTicker) <- tick
+		pt.ticker.(TestTicker) <- tick
 		taskSyncChIn <- i // No error.
 		assert.Equal(t, i, <-taskSyncChOut)
 	}
-	pt.ticker.(testTicker) <- tick
+	pt.ticker.(TestTicker) <- tick
 	taskSyncChIn <- 5 // Error that triggers Stop.
 	assert.Equal(t, int32(5), <-taskSyncChOut)
 
@@ -122,8 +122,8 @@ func Test_stopOnError(t *testing.T) {
 		"should be stopped eventually and return the right error")
 }
 
-func Test_cancelPeriodicTask(t *testing.T) {
-	pt := makeTestPeriodicTask()
+func Test_cancelTask(t *testing.T) {
+	pt := makeTestTask()
 
 	taskSyncChIn := make(chan int32, 5)
 	taskSyncChOut := make(chan bool)
@@ -152,7 +152,7 @@ func Test_cancelPeriodicTask(t *testing.T) {
 	t.Run("cancel context on start", func(t *testing.T) {
 		i.Store(0)
 		pt.Start()
-		pt.ticker.(testTicker) <- tick
+		pt.ticker.(TestTicker) <- tick
 		<-taskSyncChOut
 		assert.NoError(t, pt.Error())
 		pt.Stop()
@@ -166,12 +166,12 @@ func Test_cancelPeriodicTask(t *testing.T) {
 	t.Run("cancel context on tick", func(t *testing.T) {
 		i.Store(0)
 		pt.Start()
-		pt.ticker.(testTicker) <- tick
+		pt.ticker.(TestTicker) <- tick
 		<-taskSyncChOut
 		taskSyncChIn <- 42 // Skip the first run.
 		assert.NoError(t, pt.Error())
 
-		pt.ticker.(testTicker) <- tick
+		pt.ticker.(TestTicker) <- tick
 		<-taskSyncChOut
 		pt.Stop()
 		<-taskSyncChOut
