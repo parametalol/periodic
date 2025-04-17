@@ -84,6 +84,49 @@ func NoOverlap[T TaskFunc](task T) fullTaskFunc {
 	}
 }
 
+// RetryPolicy is a function that defines the retry policy.
+// It takes the task context, the current 0-based attempt number and the error
+// returned by the task.
+// It should return true if the task should be retried, and false otherwise.
+type RetryPolicy func(context.Context, int, error) bool
+
+// SimpleRetryPolicy returns the retry policy, that attempts to run
+// the task the specified number of times.
+func SimpleRetryPolicy(attempts int) RetryPolicy {
+	return func(ctx context.Context, i int, err error) bool {
+		return i < attempts-1 && err != nil && ctx.Err() == nil
+	}
+}
+
+// ExponentialBackoffPolicy returns a retry policy that uses exponential
+// backoff.
+// It will retry to run the task the specified number of times.
+func ExponentialBackoffPolicy(attempts int, duration time.Duration) RetryPolicy {
+	return func(ctx context.Context, i int, err error) bool {
+		if err != nil && ctx.Err() == nil {
+			time.Sleep(time.Duration(i+1) * duration)
+			return i < attempts-1
+		}
+		return false
+	}
+}
+
+// WithRetry retries the task if it returns an error.
+// It will retry to run the task according to the policy function.
+func WithRetry[T TaskFunc](task T, policy RetryPolicy) fullTaskFunc {
+	adaptedTask := Adapt(task)
+	return func(ctx context.Context) error {
+		var err error
+		for i := 0; ; i++ {
+			err = adaptedTask(ctx)
+			if !policy(ctx, i, err) {
+				break
+			}
+		}
+		return err
+	}
+}
+
 // Adapt the task to a function that takes a context and returns an error.
 func Adapt[T TaskFunc](task T) fullTaskFunc {
 	switch t := any(task).(type) {

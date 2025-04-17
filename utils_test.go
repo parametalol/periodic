@@ -86,3 +86,46 @@ func TestNoOverlap(t *testing.T) {
 	<-testCh
 	assert.Equal(t, int32(1), i.Load())
 }
+
+func TestWithRetry(t *testing.T) {
+	t.Run("with error", func(t *testing.T) {
+		var i int
+		task := func() error {
+			i++
+			return errors.New("test")
+		}
+		err := WithRetry(task, SimpleRetryPolicy(3))(context.Background())
+		assert.Error(t, err)
+		assert.Equal(t, 3, i)
+	})
+	t.Run("without error", func(t *testing.T) {
+		var i int
+		task := func() {
+			i++
+		}
+		err := WithRetry(task, SimpleRetryPolicy(3))(context.Background())
+		assert.NoError(t, err)
+		assert.Equal(t, 1, i)
+	})
+	t.Run("with cancelled context", func(t *testing.T) {
+		var i int
+		task := func() {
+			i++
+		}
+		ctx, cancel := context.WithCancel(context.Background())
+		cancel()
+		err := WithRetry(task, SimpleRetryPolicy(3))(ctx)
+		assert.NoError(t, err)
+		assert.Equal(t, 1, i)
+	})
+	t.Run("with exponential backoff", func(t *testing.T) {
+		var i int
+		task := func() error {
+			i++
+			return errors.New("test")
+		}
+		err := WithRetry(task, ExponentialBackoffPolicy(3, time.Millisecond))(context.Background())
+		assert.Error(t, err)
+		assert.Equal(t, 3, i)
+	})
+}
