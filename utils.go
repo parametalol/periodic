@@ -3,9 +3,12 @@ package periodic
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
+// Seq executes a sequence of tasks in order.
+// If one of the tasks fails, the execution stops and returns the error.
 func Seq(tasks ...fullTaskFunc) fullTaskFunc {
 	return func(ctx context.Context) error {
 		for _, task := range tasks {
@@ -17,6 +20,7 @@ func Seq(tasks ...fullTaskFunc) fullTaskFunc {
 	}
 }
 
+// IgnoreErr wraps a task and ignores its error.
 func IgnoreErr[T TaskFunc](task T) fullTaskFunc {
 	adaptedTask := Adapt(task)
 	return func(ctx context.Context) error {
@@ -25,6 +29,7 @@ func IgnoreErr[T TaskFunc](task T) fullTaskFunc {
 	}
 }
 
+// Sync wraps a task in a mutex lock to avoid concurrent execution.
 func Sync[T TaskFunc](locker sync.Locker, task T) fullTaskFunc {
 	adaptedTask := Adapt(task)
 	return func(ctx context.Context) error {
@@ -34,6 +39,9 @@ func Sync[T TaskFunc](locker sync.Locker, task T) fullTaskFunc {
 	}
 }
 
+// WithTimeout sets a timeout for the task.
+// If the task does not finish before the timeout, the context will be
+// cancelled.
 func WithTimeout[T TaskFunc](timeout time.Duration, task T) fullTaskFunc {
 	adaptedTask := Adapt(task)
 	return func(ctx context.Context) error {
@@ -43,6 +51,8 @@ func WithTimeout[T TaskFunc](timeout time.Duration, task T) fullTaskFunc {
 	}
 }
 
+// WithLog adds logging to the task.
+// It will log the task name on every invocation, and the error if it occurs.
 func WithLog[T TaskFunc](log interface {
 	Info(...any)
 	Error(...any)
@@ -55,6 +65,20 @@ func WithLog[T TaskFunc](log interface {
 			log.Error("Execution stopped for task", ctx.Value(TaskNameKey{}), "with error:", err)
 		}
 		return err
+	}
+}
+
+// NoOverlap prevents the task from running concurrently.
+// It will skip the task if it is already running.
+func NoOverlap[T TaskFunc](task T) fullTaskFunc {
+	adaptedTask := Adapt(task)
+	var running atomic.Int32
+	return func(ctx context.Context) error {
+		if !running.CompareAndSwap(0, 1) {
+			return nil
+		}
+		defer running.Store(0)
+		return adaptedTask(ctx)
 	}
 }
 

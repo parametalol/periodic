@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -57,4 +58,22 @@ func TestWithTimeout(t *testing.T) {
 	assert.ErrorIs(t, err, context.DeadlineExceeded)
 	assert.True(t, ok)
 	assert.True(t, time.Since(now) >= time.Since(deadline))
+}
+
+func TestNoOverlap(t *testing.T) {
+	var i atomic.Int32
+	testCh := make(chan bool)
+	task := func() {
+		i.Add(1)
+		testCh <- true
+		testCh <- true
+	}
+	fn := NoOverlap(Adapt(task))
+	go fn(context.Background())
+	<-testCh
+	_ = fn(context.Background())
+	_ = fn(context.Background())
+	_ = fn(context.Background())
+	<-testCh
+	assert.Equal(t, int32(1), i.Load())
 }
