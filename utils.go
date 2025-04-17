@@ -61,8 +61,10 @@ func WithLog[T TaskFunc](log interface {
 	return func(ctx context.Context) error {
 		log.Info("Calling task", ctx.Value(TaskNameKey{}))
 		err := adaptedTask(ctx)
-		if err != nil {
-			log.Error("Execution stopped for task", ctx.Value(TaskNameKey{}), "with error:", err)
+		if err != nil && err != context.Canceled {
+			log.Error("Task", ctx.Value(TaskNameKey{}), "failed with error:", err)
+		} else if ctx.Err() != nil {
+			log.Error("Execution cancelled for task", ctx.Value(TaskNameKey{}))
 		}
 		return err
 	}

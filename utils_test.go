@@ -43,8 +43,17 @@ func TestWithLog(t *testing.T) {
 	assert.Error(t, err)
 	assert.Equal(t, []string{
 		"Calling task<nil>",
-		"Execution stopped for task<nil>with error:test",
+		"Task<nil>failed with error:test",
 	}, ([]string)(a))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err = WithLog(&a, func(context.Context) {})(ctx)
+	assert.NoError(t, err)
+	assert.Equal(t, []string{
+		"Calling task<nil>",
+		"Execution cancelled for task<nil>",
+	}, ([]string)(a[2:]))
 }
 
 func TestWithTimeout(t *testing.T) {
