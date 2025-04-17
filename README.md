@@ -12,14 +12,27 @@ Periodic is a lightweight library for managing periodic tasks in your Go applica
 - A `Ticker` interface and an implementation that ticks on start and closes the channel on destruction.
 - A `TestTicker` implementation of the `Ticker` interface that allows for sending a code controlled ticks.
 
-## Installation
+## Example
 
-To install Periodic, use the following command:
+The example shows a periodic task, that prints "tick" 3 times once a second.
 
-```sh
-go get github.com/parametalol/periodic
+```go
+package main
+
+import (
+  "fmt"
+  "time"
+
+  "github.com/parametalol/periodic"
+)
+
+func tick() { fmt.Println("tick") }
+
+func main() {
+  task := periodic.NewTask("tick task", time.Second, tick)
+  task.Start()
+  time.Sleep(2500 * time.Millisecond)
+  task.Stop()
+  task.Wait()
+}
 ```
-
-## Usage
-
-See [[examples/tick_test.go]] for a usage example.
