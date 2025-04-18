@@ -1,7 +1,7 @@
 package periodic
 
 import (
-	"sync/atomic"
+	"sync"
 	"time"
 )
 
@@ -11,27 +11,36 @@ type Ticker interface {
 }
 
 type timeTicker struct {
-	t       *time.Ticker
-	ch      chan time.Time
-	stop    chan bool
-	stopped atomic.Bool
+	t    *time.Ticker
+	ch   chan time.Time
+	stop chan bool
+
+	stopMux sync.Mutex
+	stopped bool
 }
 
 func NewTicker(d time.Duration) Ticker {
-	ch := make(chan time.Time, 1)
 	ticker := &timeTicker{
 		t:    time.NewTicker(d),
-		ch:   ch,
+		ch:   make(chan time.Time, 1),
 		stop: make(chan bool),
 	}
-	ticker.ch <- time.Now()
+
 	go func() {
+		ticker.stopMux.Lock()
+		if !ticker.stopped {
+			ticker.ch <- time.Now() // Send the first tick.
+		}
+		ticker.stopMux.Unlock()
+
 		for {
 			select {
 			case tick := <-ticker.t.C:
-				if !ticker.stopped.Load() {
+				ticker.stopMux.Lock()
+				if !ticker.stopped {
 					ticker.ch <- tick
 				}
+				ticker.stopMux.Unlock()
 			case <-ticker.stop:
 				return
 			}
@@ -41,7 +50,10 @@ func NewTicker(d time.Duration) Ticker {
 }
 
 func (tt *timeTicker) Destroy() {
-	tt.stopped.Store(true)
+	tt.stopMux.Lock()
+	defer tt.stopMux.Unlock()
+	tt.stopped = true
+
 	close(tt.stop)
 	tt.t.Stop()
 	close(tt.ch)
@@ -53,9 +65,8 @@ func (tt *timeTicker) TickChan() <-chan time.Time {
 
 // region TestTicker
 
-// TestTicker is a [periodic.ticker] implementation that just wraps a
-// time.Time channel. It could be used as to test ticker consumers by sending
-// ticks explicitly.
+// TestTicker is a [Ticker] implementation that just wraps a time.Time channel.
+// It could be used to test [Ticker] clients by sending ticks explicitly.
 type TestTicker chan time.Time
 
 var _ Ticker = (*TestTicker)(nil)

@@ -26,20 +26,21 @@ func (t *testLogWrapper) Error(args ...any) {
 }
 
 func TestNewTask(t *testing.T) {
-	var counter atomic.Int32
-	var pt Task = NewTask("test", time.Hour,
-		func(ctx context.Context) error {
-			counter.Add(1)
-			return nil
-		})
+	var counter int
+	ticked := make(chan bool)
+	var pt Task = NewTask("test", time.Hour, func() {
+		ticked <- true
+		counter++
+	})
 	for range 5 {
 		pt.Start()
+		<-ticked
 		assert.NoError(t, pt.Error())
 		pt.Stop()
 		pt.Wait()
 		assert.ErrorIs(t, pt.Error(), ErrStopped)
 	}
-	assert.Equal(t, int32(5), counter.Load())
+	assert.Equal(t, 5, counter)
 
 	var nilFn func()
 	assert.Panics(t, func() { _ = NewTask("", 0, nilFn) })

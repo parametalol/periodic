@@ -149,3 +149,15 @@ func Adapt[T TaskFunc](task T) fullTaskFunc {
 	}
 	return nil
 }
+
+// Routine calls go fn() on every tick.
+func Routine(wg *sync.WaitGroup, ticks <-chan time.Time, fn func()) {
+	defer wg.Done()
+	for range ticks {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			fn()
+		}()
+	}
+}

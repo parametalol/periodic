@@ -101,22 +101,15 @@ func (pt *task) Error() error {
 }
 
 func (pt *task) loop(ticks <-chan time.Time) {
-	defer pt.wg.Done()
-
 	ctx, cancel := context.WithCancelCause(context.Background())
 	defer cancel(ErrStopped)
 
 	ctx = context.WithValue(ctx, TaskNameKey{}, pt.name)
 
-	for range ticks {
-		pt.wg.Add(1)
-		go pt.run(ctx)
-	}
+	Routine(&pt.wg, ticks, func() { pt.run(ctx) })
 }
 
 func (pt *task) run(ctx context.Context) {
-	defer pt.wg.Done()
-
 	// task calls are not synchronized.
 	if err := pt.fn(ctx); err != nil && ctx.Err() == nil {
 		pt.stateMux.Lock()
