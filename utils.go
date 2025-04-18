@@ -21,7 +21,7 @@ func Seq(tasks ...fullTaskFunc) fullTaskFunc {
 }
 
 // IgnoreErr wraps a task and ignores its error.
-func IgnoreErr[T TaskFunc](task T) fullTaskFunc {
+func IgnoreErr[Fn TaskFunc](task Fn) fullTaskFunc {
 	adaptedTask := Adapt(task)
 	return func(ctx context.Context) error {
 		_ = adaptedTask(ctx)
@@ -30,7 +30,7 @@ func IgnoreErr[T TaskFunc](task T) fullTaskFunc {
 }
 
 // Sync wraps a task in a mutex lock to avoid concurrent execution.
-func Sync[T TaskFunc](locker sync.Locker, task T) fullTaskFunc {
+func Sync[Fn TaskFunc](locker sync.Locker, task Fn) fullTaskFunc {
 	adaptedTask := Adapt(task)
 	return func(ctx context.Context) error {
 		locker.Lock()
@@ -42,7 +42,7 @@ func Sync[T TaskFunc](locker sync.Locker, task T) fullTaskFunc {
 // WithTimeout sets a timeout for the task.
 // If the task does not finish before the timeout, the context will be
 // cancelled.
-func WithTimeout[T TaskFunc](timeout time.Duration, task T) fullTaskFunc {
+func WithTimeout[Fn TaskFunc](timeout time.Duration, task Fn) fullTaskFunc {
 	adaptedTask := Adapt(task)
 	return func(ctx context.Context) error {
 		ctx, cancel := context.WithTimeout(ctx, timeout)
@@ -53,10 +53,10 @@ func WithTimeout[T TaskFunc](timeout time.Duration, task T) fullTaskFunc {
 
 // WithLog adds logging to the task.
 // It will log the task name on every invocation, and the error if it occurs.
-func WithLog[T TaskFunc](log interface {
+func WithLog[Fn TaskFunc](log interface {
 	Info(...any)
 	Error(...any)
-}, task T) fullTaskFunc {
+}, task Fn) fullTaskFunc {
 	adaptedTask := Adapt(task)
 	return func(ctx context.Context) error {
 		log.Info("Calling task", ctx.Value(TaskNameKey{}))
@@ -72,7 +72,7 @@ func WithLog[T TaskFunc](log interface {
 
 // NoOverlap prevents the task from running concurrently.
 // It will skip the task if it is already running.
-func NoOverlap[T TaskFunc](task T) fullTaskFunc {
+func NoOverlap[Fn TaskFunc](task Fn) fullTaskFunc {
 	adaptedTask := Adapt(task)
 	var running atomic.Int32
 	return func(ctx context.Context) error {
@@ -148,40 +148,4 @@ func Adapt[T TaskFunc](task T) fullTaskFunc {
 		}
 	}
 	panic("unsupported task signature")
-}
-
-// Routine calls the task in a goroutine on every tick and returns:
-//   - if the task returns an error: the error;
-//   - if the tick channel is closed: the [ErrStopped];
-//   - if the context is cancelled: [context.Cancelled].
-//
-// For the latter two cases, if the task is still running, it may observe the
-// cancelled context with [context.Cause] to be set to [ErrStopped].
-func Routine[Fn TaskFunc](ticks <-chan time.Time, ctx context.Context, task Fn) error {
-	adaptedTask := Adapt(task)
-	ctx, cancel := context.WithCancelCause(ctx)
-	defer cancel(ErrStopped)
-
-	errCh := make(chan error)
-	defer close(errCh)
-	var closed atomic.Bool
-	defer closed.Store(true)
-
-	for {
-		select {
-		case _, ok := <-ticks:
-			if !ok || closed.Load() {
-				return ErrStopped
-			}
-			go func() {
-				if err := adaptedTask(ctx); err != nil && !closed.Swap(true) {
-					errCh <- err
-				}
-			}()
-		case <-ctx.Done():
-			return ctx.Err()
-		case err := <-errCh:
-			return err
-		}
-	}
 }

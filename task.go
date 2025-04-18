@@ -77,15 +77,15 @@ func (pt *task) Start() {
 	go func() {
 		defer pt.wg.Done()
 		ctx := context.WithValue(context.Background(), TaskNameKey{}, pt.name)
-		err := Routine(ticks, ctx, pt.fn)
+		err := TickLoop(ticks, ctx, pt.fn)
 		pt.stateMux.Lock()
 		pt.err = err
 		pt.stateMux.Unlock()
 	}()
 }
 
-// Stop could be called explicitly by the client code, or after the task
-// returned an error: go Start -> go loop -> Routine -> go task -> go Stop.
+// Stop terminates the TickLoop by closing the tick channel.
+// It does not wait for the tasks to complete.
 func (pt *task) Stop() {
 	pt.stateMux.Lock()
 	defer pt.stateMux.Unlock()
