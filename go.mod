@@ -1,4 +1,4 @@
-module parameta.lol/periodic
+module github.com/parametalol/periodic
 
 go 1.23.5
 

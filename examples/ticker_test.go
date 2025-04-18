@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"parameta.lol/periodic"
+	"github.com/parametalol/periodic"
 )
 
 var i int
@@ -19,7 +19,12 @@ func TestTestTicker(t *testing.T) {
 
 	wg := sync.WaitGroup{}
 	wg.Add(1)
-	go periodic.Routine(&wg, ticker.TickChan(), counter)
+	go func() {
+		defer wg.Done()
+		for range ticker.TickChan() {
+			counter()
+		}
+	}()
 
 	for range 3 {
 		ticker.(periodic.TestTicker) <- time.Now()

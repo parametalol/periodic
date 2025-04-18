@@ -68,14 +68,24 @@ func (pt *task) Start() {
 	if pt.ticker != nil {
 		return
 	}
-	pt.wg.Add(1)
+
 	pt.err = nil
 	pt.ticker = pt.tickerConstructor(pt.period)
-	go pt.loop(pt.ticker.TickChan())
+	ticks := pt.ticker.TickChan()
+
+	pt.wg.Add(1)
+	go func() {
+		defer pt.wg.Done()
+		ctx := context.WithValue(context.Background(), TaskNameKey{}, pt.name)
+		err := Routine(ticks, ctx, pt.fn)
+		pt.stateMux.Lock()
+		pt.err = err
+		pt.stateMux.Unlock()
+	}()
 }
 
 // Stop could be called explicitly by the client code, or after the task
-// returned an error: go Start -> go loop -> go run -> go Stop.
+// returned an error: go Start -> go loop -> Routine -> go task -> go Stop.
 func (pt *task) Stop() {
 	pt.stateMux.Lock()
 	defer pt.stateMux.Unlock()
@@ -84,10 +94,6 @@ func (pt *task) Stop() {
 	}
 	pt.ticker.Destroy()
 	pt.ticker = nil
-
-	if pt.err == nil {
-		pt.err = ErrStopped
-	}
 }
 
 func (pt *task) Wait() {
@@ -98,24 +104,4 @@ func (pt *task) Error() error {
 	pt.stateMux.RLock()
 	defer pt.stateMux.RUnlock()
 	return pt.err
-}
-
-func (pt *task) loop(ticks <-chan time.Time) {
-	ctx, cancel := context.WithCancelCause(context.Background())
-	defer cancel(ErrStopped)
-
-	ctx = context.WithValue(ctx, TaskNameKey{}, pt.name)
-
-	Routine(&pt.wg, ticks, func() { pt.run(ctx) })
-}
-
-func (pt *task) run(ctx context.Context) {
-	// task calls are not synchronized.
-	if err := pt.fn(ctx); err != nil && ctx.Err() == nil {
-		pt.stateMux.Lock()
-		defer pt.stateMux.Unlock()
-		pt.err = err
-		// Stop if the task returned non-context error.
-		go pt.Stop()
-	}
 }

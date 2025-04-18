@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"parameta.lol/periodic"
+	"github.com/parametalol/periodic"
 )
 
 type stdoutLog struct{}
